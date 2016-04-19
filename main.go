@@ -8,6 +8,16 @@ import (
 	"os"
 )
 
+const artworkFilepath = "/tmp/shairport-sync-picture.jpg"
+
+type metadataRecord struct {
+	Title  string
+	Artist string
+	Album  string
+
+	HasArtwork bool
+}
+
 func main() {
 	fifo, err := os.Open("/tmp/shairport-sync-metadata")
 	if err != nil {
@@ -18,6 +28,7 @@ func main() {
 	decoder := xml.NewDecoder(fifo)
 
 	var curItem item
+	var rec metadataRecord
 
 	for {
 		t, _ := decoder.Token()
@@ -32,19 +43,43 @@ func main() {
 				if err != nil {
 					log.Fatal(err)
 				}
-				if curItem.Code == itemCode("PICT") {
-					fmt.Println("Saved picture.jpg")
-					err := ioutil.WriteFile("picture.jpg", curItem.Data, 0644)
+				switch curItem.Code {
+
+				// Metadata stream start
+				case itemCode("mdst"):
+					rec = metadataRecord{}
+
+				// Metadata stream end
+				case itemCode("mden"):
+					DisplayRecord(rec)
+					rec = metadataRecord{}
+
+				case itemCode("asar"):
+					rec.Artist = string(curItem.Data)
+
+				case itemCode("minm"):
+					rec.Title = string(curItem.Data)
+
+				case itemCode("asal"):
+					rec.Album = string(curItem.Data)
+
+				// Album artwork
+				case itemCode("PICT"):
+					fmt.Printf("Saved %s\n", artworkFilepath)
+					err := ioutil.WriteFile(artworkFilepath, curItem.Data, 0644)
 					if err != nil {
 						log.Fatal(err)
 					}
-				} else {
+					rec.HasArtwork = true
+
+				default:
 					fmt.Println(curItem)
 				}
 			}
-		default:
 		}
-
 	}
+}
 
+func DisplayRecord(rec metadataRecord) {
+	fmt.Println(rec)
 }
