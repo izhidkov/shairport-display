@@ -7,7 +7,7 @@ import (
 	"fmt"
 )
 
-func _decodeBase64String(in string) (string, error) {
+func _decodeHexString(in string) (string, error) {
 	out, err := hex.DecodeString(in)
 	if err != nil {
 		return "", err
@@ -41,27 +41,25 @@ func (item *itemData) UnmarshalXML(d *xml.Decoder, start xml.StartElement) error
 }
 
 type item struct {
-	Code itemCode `xml:"code"`
-	Type itemType `xml:"type"`
-	Data itemData `xml:"data"`
+	Code   hexString `xml:"code"`
+	Type   hexString `xml:"type"`
+	Length int       `xml:"length"`
+	Data   itemData  `xml:"data"`
 }
 
-type b64String string
+type hexString string
 
-func (el *b64String) UnmarshalXML(d *xml.Decoder, start xml.StartElement) error {
+func (el *hexString) UnmarshalXML(d *xml.Decoder, start xml.StartElement) error {
 	var tmp string
 	err := d.DecodeElement(&tmp, &start)
 	if err != nil {
 		return err
 	}
-	decodedString, err := _decodeBase64String(tmp)
-	*el = b64String(decodedString)
+	decodedString, err := _decodeHexString(tmp)
+	*el = hexString(decodedString)
 	return err
 }
 
 func (it item) String() string {
 	return fmt.Sprintf("%s: %s", it.Code, it.Data)
 }
-
-type itemType b64String
-type itemCode b64String
