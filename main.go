@@ -18,6 +18,7 @@ type metadataRecord struct {
 	Album  string
 
 	HasArtwork bool
+	OnStop bool
 }
 
 var width, height int
@@ -52,17 +53,18 @@ func main() {
 			}
 		}
 	}
+	openvg.Finish()
 }
 
 func CollateItems(items <-chan item) {
 	width, height = openvg.Init()
-	log.Printf("Initialized display size: %d x %d\n", width, height)
 	defer openvg.Finish()
-	openvg.Start(width, height)
-	openvg.BackgroundColor("red")
-	openvg.End()
+	log.Printf("Initialized display size: %d x %d\n", width, height)
+	// openvg.Start(width, height)
+	// openvg.BackgroundColor("black")
+	// openvg.End()
 
-	timer := time.NewTimer(time.Second * 3)
+	timer := time.NewTimer(time.Second)
 	var rec metadataRecord
 
 	for {
@@ -74,7 +76,7 @@ func CollateItems(items <-chan item) {
 			}
 
 		case curItem := <-items:
-			timer.Reset(time.Second * 3)
+			timer.Reset(time.Second)
 
 			switch curItem.Code {
 			case hexString("asar"):
@@ -97,6 +99,13 @@ func CollateItems(items <-chan item) {
 					log.Fatal(err)
 				}
 				rec.HasArtwork = true
+			case hexString("pbeg"):
+				rec.OnStop = false
+			case hexString("prsm"):
+				rec.OnStop = false
+			case hexString("pend"):
+				log.Printf("clear window on stop")
+				rec.OnStop = true
 
 			default:
 				fmt.Println(curItem)
@@ -107,29 +116,33 @@ func CollateItems(items <-chan item) {
 
 func DisplayRecord(rec metadataRecord) {
 	fmt.Println(rec)
+	if (!rec.OnStop) {
+		openvg.Start(width, height)
+		openvg.BackgroundColor("black")
+		openvg.FillColor("rgb(255,255,255)")
 
-	openvg.Start(width, height)
-	openvg.BackgroundColor("black")
-	openvg.FillColor("rgb(255,255,255)")
+		// FIXME: better scaling as per this example:
+		// https://github.com/ajstarks/openvg/blob/master/go-client/picshow/picshow.go
+		if (rec.HasArtwork) {
+			openvg.Image(
+				openvg.VGfloat(width-height/2)*0.51,
+				openvg.VGfloat(height)*0.31,
+				height/2,
+				height/2,
+				artworkFilepath,
+			)
+		}
 
-	// FIXME: better scaling as per this example:
-	// https://github.com/ajstarks/openvg/blob/master/go-client/picshow/picshow.go
-	if (rec.HasArtwork) {
-		openvg.Image(
-			openvg.VGfloat(width-height)/2,
-			0,
-			height/2,
-			height/2,
-			artworkFilepath,
-		)
+		textX := openvg.VGfloat(width) * 0.5
+		textY := openvg.VGfloat(height) * 0.2
+		size := width / 40
+		openvg.TextMid(textX, textY, rec.Title, "sans", size)
+		openvg.TextMid(textX, textY-1.2*openvg.VGfloat(size), rec.Artist + " - " + rec.Album, "sans", size/2)
+		// openvg.TextMid(textX, textY+4*openvg.VGfloat(size), rec.Album, "sans", size/2)
+
+		openvg.End()
+	} else {
+		log.Printf("clear window on stop finish")
+		openvg.Finish()
 	}
-
-	textX := openvg.VGfloat(width) * 0.5
-	textY := openvg.VGfloat(height) * 0.4
-	size := width / 20
-	openvg.TextMid(textX, textY, rec.Title, "sans", size)
-	openvg.TextMid(textX, textY+2*openvg.VGfloat(size), rec.Artist, "sans", size)
-	openvg.TextMid(textX, textY+4*openvg.VGfloat(size), rec.Album, "sans", size)
-
-	openvg.End()
 }
